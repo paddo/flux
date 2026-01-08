@@ -1,64 +1,85 @@
-import { useState, useEffect } from 'preact/hooks'
-import { Modal } from './Modal'
-import { createTask, updateTask, deleteTask, getEpics, getTasks, type TaskWithBlocked } from '../stores'
-import type { Task, Epic, Status } from '@flux/shared'
-import { STATUSES, STATUS_CONFIG } from '@flux/shared'
+import { useState, useEffect } from "preact/hooks";
+import { Modal } from "./Modal";
+import {
+  createTask,
+  updateTask,
+  deleteTask,
+  getEpics,
+  getTasks,
+  type TaskWithBlocked,
+} from "../stores";
+import type { Task, Epic, Status, Agent } from "@flux/shared";
+import { STATUSES, STATUS_CONFIG, AGENTS, AGENT_CONFIG } from "@flux/shared";
 
 interface TaskFormProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: () => Promise<void>
-  task?: Task // If provided, edit mode; otherwise create mode
-  projectId: string
-  defaultEpicId?: string // Pre-select epic when creating new task
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: () => Promise<void>;
+  task?: Task; // If provided, edit mode; otherwise create mode
+  projectId: string;
+  defaultEpicId?: string; // Pre-select epic when creating new task
 }
 
-export function TaskForm({ isOpen, onClose, onSave, task, projectId, defaultEpicId }: TaskFormProps) {
-  const [title, setTitle] = useState('')
-  const [notes, setNotes] = useState('')
-  const [status, setStatus] = useState<string>('backlog')
-  const [epicId, setEpicId] = useState<string>('')
-  const [epics, setEpics] = useState<Epic[]>([])
-  const [dependsOn, setDependsOn] = useState<string[]>([])
-  const [availableTasks, setAvailableTasks] = useState<TaskWithBlocked[]>([])
-  const [submitting, setSubmitting] = useState(false)
+export function TaskForm({
+  isOpen,
+  onClose,
+  onSave,
+  task,
+  projectId,
+  defaultEpicId,
+}: TaskFormProps) {
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState<string>("todo");
+  const [epicId, setEpicId] = useState<string>("");
+  const [epics, setEpics] = useState<Epic[]>([]);
+  const [dependsOn, setDependsOn] = useState<string[]>([]);
+  const [availableTasks, setAvailableTasks] = useState<TaskWithBlocked[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [agent, setAgent] = useState<Agent | "">("");
+  const [dependencyFilter, setDependencyFilter] = useState("");
 
-  const isEdit = !!task
+  const isEdit = !!task;
 
   useEffect(() => {
     if (isOpen) {
-      loadFormData()
+      loadFormData();
     }
-  }, [isOpen, task, projectId, defaultEpicId])
+  }, [isOpen, task, projectId, defaultEpicId]);
 
   const loadFormData = async () => {
     const [epicsData, tasksData] = await Promise.all([
       getEpics(projectId),
       getTasks(projectId),
-    ])
-    setEpics(epicsData)
-    setAvailableTasks(task ? tasksData.filter(t => t.id !== task.id) : tasksData)
+    ]);
+    setEpics(epicsData);
+    setAvailableTasks(
+      task ? tasksData.filter((t) => t.id !== task.id) : tasksData
+    );
 
+    setDependencyFilter("");
     if (task) {
-      setTitle(task.title)
-      setNotes(task.notes)
-      setStatus(task.status)
-      setEpicId(task.epic_id || '')
-      setDependsOn([...task.depends_on])
+      setTitle(task.title);
+      setNotes(task.notes);
+      setStatus(task.status);
+      setEpicId(task.epic_id || "");
+      setDependsOn([...task.depends_on]);
+      setAgent(task.agent || "");
     } else {
-      setTitle('')
-      setNotes('')
-      setStatus('backlog')
-      setEpicId(defaultEpicId || '')
-      setDependsOn([])
+      setTitle("");
+      setNotes("");
+      setStatus("todo");
+      setEpicId(defaultEpicId || "");
+      setDependsOn([]);
+      setAgent("");
     }
-  }
+  };
 
   const handleSubmit = async (e: Event) => {
-    e.preventDefault()
-    if (!title.trim() || submitting) return
+    e.preventDefault();
+    if (!title.trim() || submitting) return;
 
-    setSubmitting(true)
+    setSubmitting(true);
     try {
       if (isEdit && task) {
         await updateTask(task.id, {
@@ -67,40 +88,57 @@ export function TaskForm({ isOpen, onClose, onSave, task, projectId, defaultEpic
           status,
           epic_id: epicId || undefined,
           depends_on: dependsOn,
-        })
+          agent: agent || undefined,
+        });
       } else {
-        const newTask = await createTask(projectId, title.trim(), epicId || undefined, notes.trim())
+        const newTask = await createTask(
+          projectId,
+          title.trim(),
+          epicId || undefined,
+          notes.trim()
+        );
+        const updates: Partial<Task> = {};
         if (dependsOn.length > 0) {
-          await updateTask(newTask.id, { depends_on: dependsOn })
+          updates.depends_on = dependsOn;
+        }
+        if (agent) {
+          updates.agent = agent as Agent;
+        }
+        if (Object.keys(updates).length > 0) {
+          await updateTask(newTask.id, updates);
         }
       }
-      await onSave()
-      onClose()
+      await onSave();
+      onClose();
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (task && confirm('Delete this task?')) {
-      setSubmitting(true)
-      await deleteTask(task.id)
-      await onSave()
-      onClose()
-      setSubmitting(false)
+    if (task && confirm("Delete this task?")) {
+      setSubmitting(true);
+      await deleteTask(task.id);
+      await onSave();
+      onClose();
+      setSubmitting(false);
     }
-  }
+  };
 
   const toggleDependency = (taskId: string) => {
-    setDependsOn(prev =>
+    setDependsOn((prev) =>
       prev.includes(taskId)
-        ? prev.filter(id => id !== taskId)
+        ? prev.filter((id) => id !== taskId)
         : [...prev, taskId]
-    )
-  }
+    );
+  };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? 'Edit Task' : 'New Task'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? "Edit Task" : "New Task"}
+    >
       <form onSubmit={handleSubmit}>
         <div class="form-control mb-4">
           <label class="label">
@@ -129,17 +167,41 @@ export function TaskForm({ isOpen, onClose, onSave, task, projectId, defaultEpic
           />
         </div>
 
+        {isEdit && (
+          <div class="form-control mb-4">
+            <label class="label">
+              <span class="label-text">Status</span>
+            </label>
+            <select
+              class="select select-bordered w-full"
+              value={status}
+              onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_CONFIG[s].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div class="form-control mb-4">
           <label class="label">
-            <span class="label-text">Status</span>
+            <span class="label-text">Preferred Agent</span>
           </label>
           <select
             class="select select-bordered w-full"
-            value={status}
-            onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}
+            value={agent}
+            onChange={(e) =>
+              setAgent((e.target as HTMLSelectElement).value as Agent | "")
+            }
           >
-            {STATUSES.map(s => (
-              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+            <option value="">No agent</option>
+            {AGENTS.map((a) => (
+              <option key={a} value={a}>
+                {AGENT_CONFIG[a].label}
+              </option>
             ))}
           </select>
         </div>
@@ -154,8 +216,10 @@ export function TaskForm({ isOpen, onClose, onSave, task, projectId, defaultEpic
             onChange={(e) => setEpicId((e.target as HTMLSelectElement).value)}
           >
             <option value="">Unassigned</option>
-            {epics.map(epic => (
-              <option key={epic.id} value={epic.id}>{epic.title}</option>
+            {epics.map((epic) => (
+              <option key={epic.id} value={epic.id}>
+                {epic.title}
+              </option>
             ))}
           </select>
         </div>
@@ -170,37 +234,80 @@ export function TaskForm({ isOpen, onClose, onSave, task, projectId, defaultEpic
           {availableTasks.length === 0 ? (
             <p class="text-sm text-base-content/50">No other tasks available</p>
           ) : (
-            <div class="border border-base-300 rounded-lg max-h-32 overflow-y-auto">
-              {availableTasks.map(t => (
-                <label key={t.id} class="flex items-center gap-2 px-3 py-2 hover:bg-base-200 cursor-pointer">
+            <div class="border border-base-300 rounded-lg">
+              {availableTasks.length > 3 && (
+                <div class="px-3 py-2 border-b border-base-300">
                   <input
-                    type="checkbox"
-                    class="checkbox checkbox-sm"
-                    checked={dependsOn.includes(t.id)}
-                    onChange={() => toggleDependency(t.id)}
+                    type="text"
+                    placeholder="Filter tasks..."
+                    class="input input-bordered input-sm w-full"
+                    value={dependencyFilter}
+                    onInput={(e) =>
+                      setDependencyFilter((e.target as HTMLInputElement).value)
+                    }
                   />
-                  <span class="text-sm truncate flex-1">{t.title}</span>
-                  <span class="badge badge-ghost badge-xs">{STATUS_CONFIG[t.status as Status]?.label || t.status}</span>
-                </label>
-              ))}
+                </div>
+              )}
+              <div class="max-h-32 overflow-y-auto">
+                {availableTasks
+                  .filter(
+                    (t) =>
+                      !dependencyFilter ||
+                      t.title
+                        .toLowerCase()
+                        .includes(dependencyFilter.toLowerCase())
+                  )
+                  .map((t) => (
+                    <label
+                      key={t.id}
+                      class="flex items-center gap-2 px-3 py-2 hover:bg-base-200 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-sm"
+                        checked={dependsOn.includes(t.id)}
+                        onChange={() => toggleDependency(t.id)}
+                      />
+                      <span class="text-sm truncate flex-1">{t.title}</span>
+                      <span class="badge badge-ghost badge-xs">
+                        {STATUS_CONFIG[t.status as Status]?.label || t.status}
+                      </span>
+                    </label>
+                  ))}
+              </div>
             </div>
           )}
         </div>
 
         <div class="modal-action">
           {isEdit && (
-            <button type="button" class="btn btn-error btn-outline" onClick={handleDelete} disabled={submitting}>
+            <button
+              type="button"
+              class="btn btn-error btn-outline"
+              onClick={handleDelete}
+              disabled={submitting}
+            >
               Delete
             </button>
           )}
           <button type="button" class="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" class="btn btn-primary" disabled={!title.trim() || submitting}>
-            {submitting ? <span class="loading loading-spinner loading-sm"></span> : (isEdit ? 'Save' : 'Create')}
+          <button
+            type="submit"
+            class="btn btn-primary"
+            disabled={!title.trim() || submitting}
+          >
+            {submitting ? (
+              <span class="loading loading-spinner loading-sm"></span>
+            ) : isEdit ? (
+              "Save"
+            ) : (
+              "Create"
+            )}
           </button>
         </div>
       </form>
     </Modal>
-  )
+  );
 }

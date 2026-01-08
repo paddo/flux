@@ -25,6 +25,7 @@ import {
   updateTask,
   deleteTask,
   isTaskBlocked,
+  archiveDoneTasks,
   type Store,
 } from '@flux/shared';
 
@@ -257,6 +258,12 @@ app.delete('/api/tasks/:id', (c) => {
   const success = deleteTask(c.req.param('id'));
   if (!success) return c.json({ error: 'Task not found' }, 404);
   return c.json({ success: true });
+});
+
+// Archive all done tasks in a project
+app.post('/api/projects/:projectId/archive-done', (c) => {
+  const count = archiveDoneTasks(c.req.param('projectId'));
+  return c.json({ success: true, count });
 });
 
 // Serve static files from web build (production)

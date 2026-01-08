@@ -1,3 +1,15 @@
+// Agent options for tasks
+export type Agent = 'claude' | 'codex' | 'gemini' | 'other';
+
+export const AGENTS: Agent[] = ['claude', 'codex', 'gemini', 'other'];
+
+export const AGENT_CONFIG: Record<Agent, { label: string }> = {
+  claude: { label: 'Claude' },
+  codex: { label: 'Codex' },
+  gemini: { label: 'Gemini' },
+  other: { label: 'Other' },
+};
+
 // Task represents a single work item.
 export type Task = {
   id: string;
@@ -7,6 +19,8 @@ export type Task = {
   notes: string;
   epic_id?: string;
   project_id: string;
+  agent?: Agent; // Optional agent assignment
+  archived?: boolean; // Whether the task is archived
 };
 
 // Epic represents a grouped set of tasks.

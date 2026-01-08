@@ -126,3 +126,10 @@ export async function deleteTask(id: string): Promise<boolean> {
   const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
   return res.ok;
 }
+
+export async function archiveDoneTasks(projectId: string): Promise<{ success: boolean; count: number }> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/archive-done`, {
+    method: 'POST',
+  });
+  return res.json();
+}

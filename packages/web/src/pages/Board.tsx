@@ -13,6 +13,7 @@ import {
   getTasks,
   getEpics,
   updateTask,
+  archiveDoneTasks,
   type TaskWithBlocked,
 } from "../stores";
 import type { Epic } from "@flux/shared";
@@ -57,6 +58,9 @@ export function Board({ projectId }: BoardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterEpicId, setFilterEpicId] = useState<string | "all">("all");
   const [filterStatus, setFilterStatus] = useState<string | "all">("all");
+
+  // Archive confirmation dialog state
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 
   // Configure sensors with activation constraint to allow clicks
   const sensors = useSensors(
@@ -191,6 +195,17 @@ export function Board({ projectId }: BoardProps) {
     setEpicFormOpen(false);
     setEditingEpic(undefined);
   };
+
+  // Archive handlers
+  const handleArchiveDone = async () => {
+    if (!projectId) return;
+    await archiveDoneTasks(projectId);
+    setArchiveDialogOpen(false);
+    await refreshData();
+  };
+
+  // Get count of done tasks (for archive button)
+  const doneTaskCount = tasks.filter((t) => t.status === "done").length;
 
   // Filter tasks
   const filterTask = (task: TaskWithBlocked): boolean => {
@@ -352,6 +367,31 @@ export function Board({ projectId }: BoardProps) {
                   }}
                 >
                   Clear
+                </button>
+              )}
+              {doneTaskCount > 0 && (
+                <button
+                  class="btn btn-ghost btn-sm gap-1"
+                  onClick={() => setArchiveDialogOpen(true)}
+                  title="Archive all done tasks"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M13 11l9-9" />
+                    <path d="M17 2l5 5" />
+                    <path d="M14.5 8.5L3 20" />
+                    <path d="M3 20c0 0 2.5 1 5-1.5s3.5-4.5 3.5-4.5" />
+                    <path d="M7 13l4 4" />
+                  </svg>
+                  Tidy Up
                 </button>
               )}
             </div>
@@ -618,6 +658,34 @@ export function Board({ projectId }: BoardProps) {
           epic={editingEpic}
           projectId={projectId!}
         />
+
+        {/* Archive Confirmation Dialog */}
+        {archiveDialogOpen && (
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h3 class="font-bold text-lg">Tidy Up Board</h3>
+              <p class="py-4">
+                Archive {doneTaskCount} completed task
+                {doneTaskCount !== 1 ? "s" : ""}? They'll be hidden from the board.
+              </p>
+              <div class="modal-action">
+                <button
+                  class="btn btn-ghost"
+                  onClick={() => setArchiveDialogOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button class="btn btn-primary" onClick={handleArchiveDone}>
+                  Tidy Up
+                </button>
+              </div>
+            </div>
+            <div
+              class="modal-backdrop bg-black/50"
+              onClick={() => setArchiveDialogOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </DndContext>
   );

@@ -1,4 +1,4 @@
-import type { Task, Epic, Project, Store } from './types.js';
+import type { Task, Epic, Project, Store, Webhook, WebhookDelivery, WebhookEventType, WebhookPayload, StoreWithWebhooks } from './types.js';
 
 // Storage adapter interface - can be localStorage or file-based
 export interface StorageAdapter {
@@ -303,4 +303,207 @@ export function cleanupProject(projectId: string, archiveTasks: boolean, archive
   }
 
   return { archivedTasks, deletedEpics };
+}
+
+// ============ Webhook Operations ============
+
+// Get typed data accessor
+function getWebhookData(): StoreWithWebhooks {
+  return db.data as StoreWithWebhooks;
+}
+
+// Ensure webhooks arrays exist
+function ensureWebhooksArrays(): void {
+  const data = getWebhookData();
+  if (!data.webhooks) data.webhooks = [];
+  if (!data.webhook_deliveries) data.webhook_deliveries = [];
+}
+
+export function getWebhooks(): Webhook[] {
+  ensureWebhooksArrays();
+  return [...(getWebhookData().webhooks || [])];
+}
+
+export function getWebhook(id: string): Webhook | undefined {
+  ensureWebhooksArrays();
+  return getWebhookData().webhooks?.find(w => w.id === id);
+}
+
+export function getWebhooksByProject(projectId: string): Webhook[] {
+  ensureWebhooksArrays();
+  return (getWebhookData().webhooks || []).filter(
+    w => !w.project_id || w.project_id === projectId
+  );
+}
+
+export function createWebhook(
+  name: string,
+  url: string,
+  events: WebhookEventType[],
+  options?: { secret?: string; project_id?: string; enabled?: boolean }
+): Webhook {
+  ensureWebhooksArrays();
+  const now = new Date().toISOString();
+  const webhook: Webhook = {
+    id: generateId(),
+    name,
+    url,
+    events,
+    enabled: options?.enabled ?? true,
+    secret: options?.secret,
+    project_id: options?.project_id,
+    created_at: now,
+    updated_at: now,
+  };
+  getWebhookData().webhooks!.push(webhook);
+  db.write();
+  return webhook;
+}
+
+export function updateWebhook(
+  id: string,
+  updates: Partial<Omit<Webhook, 'id' | 'created_at'>>
+): Webhook | undefined {
+  ensureWebhooksArrays();
+  const webhooks = getWebhookData().webhooks!;
+  const index = webhooks.findIndex(w => w.id === id);
+  if (index === -1) return undefined;
+  webhooks[index] = {
+    ...webhooks[index],
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+  db.write();
+  return webhooks[index];
+}
+
+export function deleteWebhook(id: string): boolean {
+  ensureWebhooksArrays();
+  const data = getWebhookData();
+  const index = data.webhooks!.findIndex(w => w.id === id);
+  if (index === -1) return false;
+  data.webhooks!.splice(index, 1);
+  // Also remove any delivery records for this webhook
+  data.webhook_deliveries = data.webhook_deliveries!.filter(d => d.webhook_id !== id);
+  db.write();
+  return true;
+}
+
+export function testWebhook(id: string): Webhook | undefined {
+  return getWebhook(id);
+}
+
+// ============ Webhook Delivery Operations ============
+
+export function getWebhookDeliveries(webhookId?: string, limit: number = 50): WebhookDelivery[] {
+  ensureWebhooksArrays();
+  let deliveries = [...(getWebhookData().webhook_deliveries || [])];
+  if (webhookId) {
+    deliveries = deliveries.filter(d => d.webhook_id === webhookId);
+  }
+  // Sort by created_at descending (most recent first)
+  deliveries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return deliveries.slice(0, limit);
+}
+
+export function createWebhookDelivery(
+  webhookId: string,
+  event: WebhookEventType,
+  payload: WebhookPayload
+): WebhookDelivery {
+  ensureWebhooksArrays();
+  const delivery: WebhookDelivery = {
+    id: generateId(),
+    webhook_id: webhookId,
+    event,
+    payload,
+    status: 'pending',
+    attempts: 0,
+    created_at: new Date().toISOString(),
+  };
+  getWebhookData().webhook_deliveries!.push(delivery);
+  db.write();
+  return delivery;
+}
+
+export function updateWebhookDelivery(
+  id: string,
+  updates: Partial<Omit<WebhookDelivery, 'id' | 'webhook_id' | 'event' | 'payload' | 'created_at'>>
+): WebhookDelivery | undefined {
+  ensureWebhooksArrays();
+  const deliveries = getWebhookData().webhook_deliveries!;
+  const index = deliveries.findIndex(d => d.id === id);
+  if (index === -1) return undefined;
+  deliveries[index] = { ...deliveries[index], ...updates };
+  db.write();
+  return deliveries[index];
+}
+
+export function cleanupOldDeliveries(maxAge: number = 7 * 24 * 60 * 60 * 1000): number {
+  ensureWebhooksArrays();
+  const data = getWebhookData();
+  const cutoff = new Date(Date.now() - maxAge).toISOString();
+  const originalCount = data.webhook_deliveries!.length;
+  data.webhook_deliveries = data.webhook_deliveries!.filter(d => d.created_at > cutoff);
+  const removed = originalCount - data.webhook_deliveries.length;
+  if (removed > 0) {
+    db.write();
+  }
+  return removed;
+}
+
+// ============ Webhook Triggering ============
+
+// Webhook event handler type
+export type WebhookEventHandler = (
+  event: WebhookEventType,
+  payload: WebhookPayload,
+  webhook: Webhook
+) => Promise<void>;
+
+// Global webhook event handler (set by server)
+let webhookEventHandler: WebhookEventHandler | null = null;
+
+export function setWebhookEventHandler(handler: WebhookEventHandler | null): void {
+  webhookEventHandler = handler;
+}
+
+export function getWebhookEventHandler(): WebhookEventHandler | null {
+  return webhookEventHandler;
+}
+
+// Trigger webhooks for an event
+export async function triggerWebhooks(
+  event: WebhookEventType,
+  data: WebhookPayload['data'],
+  projectId?: string
+): Promise<void> {
+  if (!webhookEventHandler) return;
+
+  ensureWebhooksArrays();
+  const webhooks = getWebhookData().webhooks || [];
+
+  // Find matching webhooks
+  const matchingWebhooks = webhooks.filter(w => {
+    if (!w.enabled) return false;
+    if (!w.events.includes(event)) return false;
+    if (w.project_id && projectId && w.project_id !== projectId) return false;
+    return true;
+  });
+
+  // Trigger each webhook
+  for (const webhook of matchingWebhooks) {
+    const payload: WebhookPayload = {
+      event,
+      timestamp: new Date().toISOString(),
+      webhook_id: webhook.id,
+      data,
+    };
+
+    try {
+      await webhookEventHandler(event, payload, webhook);
+    } catch (error) {
+      console.error(`Failed to trigger webhook ${webhook.id}:`, error);
+    }
+  }
 }

@@ -1,4 +1,4 @@
-import type { Task, Epic, Project } from '@flux/shared';
+import type { Task, Epic, Project, Webhook, WebhookDelivery, WebhookEventType } from '@flux/shared';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3000/api' : '/api';
 
@@ -137,5 +137,65 @@ export async function cleanupProject(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ archiveTasks, archiveEpics }),
   });
+  return res.json();
+}
+
+// ============ Webhook Operations ============
+
+export async function getWebhooks(): Promise<Webhook[]> {
+  const res = await fetch(`${API_BASE}/webhooks`);
+  return res.json();
+}
+
+export async function getWebhook(id: string): Promise<Webhook | null> {
+  const res = await fetch(`${API_BASE}/webhooks/${id}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function createWebhook(
+  name: string,
+  url: string,
+  events: WebhookEventType[],
+  options?: { secret?: string; project_id?: string; enabled?: boolean }
+): Promise<Webhook> {
+  const res = await fetch(`${API_BASE}/webhooks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, url, events, ...options }),
+  });
+  return res.json();
+}
+
+export async function updateWebhook(
+  id: string,
+  updates: Partial<Omit<Webhook, 'id' | 'created_at'>>
+): Promise<Webhook | null> {
+  const res = await fetch(`${API_BASE}/webhooks/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deleteWebhook(id: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/webhooks/${id}`, { method: 'DELETE' });
+  return res.ok;
+}
+
+export async function testWebhook(id: string): Promise<{
+  success: boolean;
+  status_code?: number;
+  response?: string;
+  error?: string;
+}> {
+  const res = await fetch(`${API_BASE}/webhooks/${id}/test`, { method: 'POST' });
+  return res.json();
+}
+
+export async function getWebhookDeliveries(webhookId: string, limit: number = 50): Promise<WebhookDelivery[]> {
+  const res = await fetch(`${API_BASE}/webhooks/${webhookId}/deliveries?limit=${limit}`);
   return res.json();
 }

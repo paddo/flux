@@ -30,8 +30,16 @@ import {
   updateTask,
   deleteTask,
   isTaskBlocked,
+  getWebhooks,
+  getWebhook,
+  createWebhook,
+  updateWebhook,
+  deleteWebhook,
+  getWebhookDeliveries,
   type Store,
   STATUSES,
+  WEBHOOK_EVENT_TYPES,
+  type WebhookEventType,
 } from '@flux/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -402,6 +410,79 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['task_id', 'status'],
         },
       },
+
+      // Webhook tools
+      {
+        name: 'list_webhooks',
+        description: 'List all configured webhooks',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'create_webhook',
+        description: 'Create a new webhook to receive notifications when events occur',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Webhook name for identification' },
+            url: { type: 'string', description: 'URL to send webhook POST requests to' },
+            events: {
+              type: 'array',
+              items: { type: 'string', enum: WEBHOOK_EVENT_TYPES },
+              description: 'List of events to trigger this webhook (e.g., task.created, task.status_changed)',
+            },
+            secret: { type: 'string', description: 'Optional secret for HMAC signature verification' },
+            project_id: { type: 'string', description: 'Optional: only trigger for this project' },
+          },
+          required: ['name', 'url', 'events'],
+        },
+      },
+      {
+        name: 'update_webhook',
+        description: 'Update an existing webhook configuration',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhook_id: { type: 'string', description: 'Webhook ID to update' },
+            name: { type: 'string', description: 'New webhook name' },
+            url: { type: 'string', description: 'New URL to send webhook requests to' },
+            events: {
+              type: 'array',
+              items: { type: 'string', enum: WEBHOOK_EVENT_TYPES },
+              description: 'New list of events to trigger this webhook',
+            },
+            secret: { type: 'string', description: 'New secret for signature verification' },
+            project_id: { type: 'string', description: 'New project filter (empty to clear)' },
+            enabled: { type: 'boolean', description: 'Enable or disable the webhook' },
+          },
+          required: ['webhook_id'],
+        },
+      },
+      {
+        name: 'delete_webhook',
+        description: 'Delete a webhook',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhook_id: { type: 'string', description: 'Webhook ID to delete' },
+          },
+          required: ['webhook_id'],
+        },
+      },
+      {
+        name: 'list_webhook_deliveries',
+        description: 'List recent webhook delivery attempts for a specific webhook',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhook_id: { type: 'string', description: 'Webhook ID to get deliveries for' },
+            limit: { type: 'number', description: 'Maximum number of deliveries to return (default 20)' },
+          },
+          required: ['webhook_id'],
+        },
+      },
     ],
   };
 });
@@ -569,6 +650,67 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           { type: 'text', text: `Moved task "${task.title}" to ${args?.status}` },
         ],
+      };
+    }
+
+    // Webhook operations
+    case 'list_webhooks': {
+      const webhooks = getWebhooks();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(webhooks, null, 2) }],
+      };
+    }
+
+    case 'create_webhook': {
+      const webhook = createWebhook(
+        args?.name as string,
+        args?.url as string,
+        args?.events as WebhookEventType[],
+        {
+          secret: args?.secret as string | undefined,
+          project_id: args?.project_id as string | undefined,
+        }
+      );
+      return {
+        content: [
+          { type: 'text', text: `Created webhook "${webhook.name}" with ID: ${webhook.id}` },
+        ],
+      };
+    }
+
+    case 'update_webhook': {
+      const updates: Record<string, unknown> = {};
+      if (args?.name) updates.name = args.name;
+      if (args?.url) updates.url = args.url;
+      if (args?.events) updates.events = args.events;
+      if (args?.secret !== undefined) updates.secret = args.secret || undefined;
+      if (args?.project_id !== undefined) updates.project_id = args.project_id || undefined;
+      if (args?.enabled !== undefined) updates.enabled = args.enabled;
+
+      const webhook = updateWebhook(args?.webhook_id as string, updates);
+      if (!webhook) {
+        return { content: [{ type: 'text', text: 'Webhook not found' }], isError: true };
+      }
+      return {
+        content: [{ type: 'text', text: `Updated webhook: ${JSON.stringify(webhook, null, 2)}` }],
+      };
+    }
+
+    case 'delete_webhook': {
+      const success = deleteWebhook(args?.webhook_id as string);
+      if (!success) {
+        return { content: [{ type: 'text', text: 'Webhook not found' }], isError: true };
+      }
+      return {
+        content: [{ type: 'text', text: `Deleted webhook ${args?.webhook_id}` }],
+      };
+    }
+
+    case 'list_webhook_deliveries': {
+      const limit = (args?.limit as number) || 20;
+      const deliveries = getWebhookDeliveries(args?.webhook_id as string, limit);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(deliveries, null, 2) }],
       };
     }
 

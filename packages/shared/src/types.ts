@@ -70,3 +70,95 @@ export const EPIC_COLORS = [
   '#ec4899', // pink
   '#84cc16', // lime
 ];
+
+// ============ Webhook Types ============
+
+// Webhook event types
+export type WebhookEventType =
+  | 'project.created'
+  | 'project.updated'
+  | 'project.deleted'
+  | 'epic.created'
+  | 'epic.updated'
+  | 'epic.deleted'
+  | 'task.created'
+  | 'task.updated'
+  | 'task.deleted'
+  | 'task.status_changed'
+  | 'task.archived';
+
+export const WEBHOOK_EVENT_TYPES: WebhookEventType[] = [
+  'project.created',
+  'project.updated',
+  'project.deleted',
+  'epic.created',
+  'epic.updated',
+  'epic.deleted',
+  'task.created',
+  'task.updated',
+  'task.deleted',
+  'task.status_changed',
+  'task.archived',
+];
+
+// Webhook event type labels for UI
+export const WEBHOOK_EVENT_LABELS: Record<WebhookEventType, string> = {
+  'project.created': 'Project Created',
+  'project.updated': 'Project Updated',
+  'project.deleted': 'Project Deleted',
+  'epic.created': 'Epic Created',
+  'epic.updated': 'Epic Updated',
+  'epic.deleted': 'Epic Deleted',
+  'task.created': 'Task Created',
+  'task.updated': 'Task Updated',
+  'task.deleted': 'Task Deleted',
+  'task.status_changed': 'Task Status Changed',
+  'task.archived': 'Task Archived',
+};
+
+// Webhook configuration
+export type Webhook = {
+  id: string;
+  name: string;
+  url: string;
+  secret?: string; // Optional secret for HMAC signature verification
+  events: WebhookEventType[];
+  enabled: boolean;
+  project_id?: string; // Optional: only trigger for specific project
+  created_at: string;
+  updated_at: string;
+};
+
+// Webhook delivery record
+export type WebhookDelivery = {
+  id: string;
+  webhook_id: string;
+  event: WebhookEventType;
+  payload: WebhookPayload;
+  status: 'pending' | 'success' | 'failed';
+  response_code?: number;
+  response_body?: string;
+  error?: string;
+  attempts: number;
+  created_at: string;
+  delivered_at?: string;
+};
+
+// Webhook payload structure
+export type WebhookPayload = {
+  event: WebhookEventType;
+  timestamp: string;
+  webhook_id: string;
+  data: {
+    project?: Project;
+    epic?: Epic;
+    task?: Task;
+    previous?: Partial<Project | Epic | Task>; // For update events
+  };
+};
+
+// Store is the JSON document root - updated to include webhooks
+export type StoreWithWebhooks = Store & {
+  webhooks?: Webhook[];
+  webhook_deliveries?: WebhookDelivery[];
+};

@@ -9,6 +9,11 @@
     "dev:server": "pnpm --filter @flux/server dev",
     "build": "pnpm -r build",
     "preview": "pnpm --filter @flux/web preview",
-    "typecheck": "pnpm -r build"
+    "typecheck": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
   }
 }

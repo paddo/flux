@@ -26,6 +26,29 @@ Ship with less chaos. Flux is a fast, simple Kanban board with MCP integration s
 Flux is early and moving quickly. If you want to help shape it, contributions are welcome.
 Open an issue for ideas and bugs, or pick something from the roadmap and send a PR.
 
+## Quick Start (Docker)
+
+macOS/Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sirsjg/flux/main/scripts/quickstart.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/sirsjg/flux/main/scripts/quickstart.ps1 | iex
+```
+
+Then start the MCP:
+
+```bash
+docker run -i --rm -v flux-data:/app/packages/data flux-mcp
+```
+
+Web UI is available at [http://localhost:3000](http://localhost:3000).
+
+
 ## Installation (Docker)
 
 Docker is the recommended way to run Flux. Build the image first:

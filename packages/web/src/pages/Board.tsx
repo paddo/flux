@@ -13,6 +13,7 @@ import {
   getTasks,
   getEpics,
   updateTask,
+  cleanupProject,
   type TaskWithBlocked,
 } from "../stores";
 import type { Epic } from "@flux/shared";
@@ -51,11 +52,20 @@ export function Board({ projectId }: BoardProps) {
     undefined
   );
   const [editingEpic, setEditingEpic] = useState<Epic | undefined>(undefined);
+  const [defaultEpicId, setDefaultEpicId] = useState<string | undefined>(undefined);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterEpicId, setFilterEpicId] = useState<string | "all">("all");
   const [filterStatus, setFilterStatus] = useState<string | "all">("all");
+
+  // Cleanup dialog state
+  const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
+  const [cleanupArchiveTasks, setCleanupArchiveTasks] = useState(true);
+  const [cleanupArchiveEpics, setCleanupArchiveEpics] = useState(true);
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<"normal" | "condensed">("normal");
 
   // Configure sensors with activation constraint to allow clicks
   const sensors = useSensors(
@@ -158,8 +168,9 @@ export function Board({ projectId }: BoardProps) {
   };
 
   // Task form handlers
-  const openNewTask = () => {
+  const openNewTask = (epicId?: string) => {
     setEditingTask(undefined);
+    setDefaultEpicId(epicId);
     setTaskFormOpen(true);
   };
 
@@ -171,6 +182,7 @@ export function Board({ projectId }: BoardProps) {
   const closeTaskForm = () => {
     setTaskFormOpen(false);
     setEditingTask(undefined);
+    setDefaultEpicId(undefined);
   };
 
   // Epic form handlers
@@ -188,6 +200,19 @@ export function Board({ projectId }: BoardProps) {
     setEpicFormOpen(false);
     setEditingEpic(undefined);
   };
+
+  // Cleanup handlers
+  const handleCleanup = async () => {
+    if (!projectId) return;
+    await cleanupProject(projectId, cleanupArchiveTasks, cleanupArchiveEpics);
+    setCleanupDialogOpen(false);
+    setCleanupArchiveTasks(true);
+    setCleanupArchiveEpics(true);
+    await refreshData();
+  };
+
+  // Get count of done tasks (for archive button)
+  const doneTaskCount = tasks.filter((t) => t.status === "done").length;
 
   // Filter tasks
   const filterTask = (task: TaskWithBlocked): boolean => {
@@ -269,13 +294,13 @@ export function Board({ projectId }: BoardProps) {
             </div>
           </div>
           <div class="flex gap-2">
-            <button class="btn btn-primary btn-sm" onClick={openNewTask}>
+            <ThemeToggle />
+            <button class="btn btn-primary btn-sm" onClick={() => openNewTask()}>
               New Task
             </button>
             <button class="btn btn-neutral btn-sm" onClick={openNewEpic}>
               New Epic
             </button>
-            <ThemeToggle />
           </div>
         </div>
 
@@ -351,6 +376,45 @@ export function Board({ projectId }: BoardProps) {
                   Clear
                 </button>
               )}
+              <div class="flex-1" />
+              <button
+                class="btn btn-ghost btn-sm"
+                onClick={() => setCleanupDialogOpen(true)}
+                title="Clean up board"
+              >
+                Clean Up
+              </button>
+              {/* View Toggle */}
+              <div class="join">
+                <button
+                  class={`btn btn-sm join-item ${viewMode === "normal" ? "btn-primary" : "btn-ghost"}`}
+                  onClick={() => setViewMode("normal")}
+                  title="Normal view"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                </button>
+                <button
+                  class={`btn btn-sm join-item ${viewMode === "condensed" ? "btn-primary" : "btn-ghost"}`}
+                  onClick={() => setViewMode("condensed")}
+                  title="Condensed view"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -437,6 +501,29 @@ export function Board({ projectId }: BoardProps) {
                               <span class="text-base-content/40 text-sm">
                                 {count}
                               </span>
+                              {status === "todo" && (
+                                <button
+                                  class="ml-auto w-5 h-5 rounded flex items-center justify-center text-base-content/40 hover:text-base-content/70 hover:bg-base-200 transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openNewTask(epic.id);
+                                  }}
+                                  title="Add task to this epic"
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fill-rule="evenodd"
+                                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                      clip-rule="evenodd"
+                                    />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -461,6 +548,7 @@ export function Board({ projectId }: BoardProps) {
                                   epicTitle={epic.title}
                                   taskNumber={taskIndex + 1}
                                   onClick={() => openEditTask(task)}
+                                  condensed={viewMode === "condensed"}
                                 />
                               )
                             )}
@@ -520,6 +608,29 @@ export function Board({ projectId }: BoardProps) {
                           <span class="text-base-content/40 text-sm">
                             {count}
                           </span>
+                          {status === "todo" && (
+                            <button
+                              class="ml-auto w-5 h-5 rounded flex items-center justify-center text-base-content/40 hover:text-base-content/70 hover:bg-base-200 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openNewTask(undefined);
+                              }}
+                              title="Add unassigned task"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fill-rule="evenodd"
+                                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                  clip-rule="evenodd"
+                                />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -541,6 +652,7 @@ export function Board({ projectId }: BoardProps) {
                               epicTitle="Unassigned"
                               taskNumber={taskIndex + 1}
                               onClick={() => openEditTask(task)}
+                              condensed={viewMode === "condensed"}
                             />
                           )
                         )}
@@ -560,6 +672,7 @@ export function Board({ projectId }: BoardProps) {
           onSave={refreshData}
           task={editingTask}
           projectId={projectId!}
+          defaultEpicId={defaultEpicId}
         />
         <EpicForm
           isOpen={epicFormOpen}
@@ -568,6 +681,71 @@ export function Board({ projectId }: BoardProps) {
           epic={editingEpic}
           projectId={projectId!}
         />
+
+        {/* Cleanup Dialog */}
+        {cleanupDialogOpen && (
+          <div class="modal modal-open">
+            <div class="modal-box">
+              <h3 class="font-bold text-lg">Clean Up Board</h3>
+              <div class="py-4 space-y-3">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    class="checkbox"
+                    checked={cleanupArchiveTasks}
+                    onChange={(e) =>
+                      setCleanupArchiveTasks((e.target as HTMLInputElement).checked)
+                    }
+                  />
+                  <span>Archive Done Tasks</span>
+                  {doneTaskCount > 0 && (
+                    <span class="text-base-content/50 text-sm">
+                      ({doneTaskCount} task{doneTaskCount !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    class="checkbox"
+                    checked={cleanupArchiveEpics}
+                    onChange={(e) =>
+                      setCleanupArchiveEpics((e.target as HTMLInputElement).checked)
+                    }
+                  />
+                  <span>Archive Empty Epics</span>
+                </label>
+              </div>
+              <div class="modal-action">
+                <button
+                  class="btn btn-ghost"
+                  onClick={() => {
+                    setCleanupDialogOpen(false);
+                    setCleanupArchiveTasks(true);
+                    setCleanupArchiveEpics(true);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  class="btn btn-primary"
+                  onClick={handleCleanup}
+                  disabled={!cleanupArchiveTasks && !cleanupArchiveEpics}
+                >
+                  Clean
+                </button>
+              </div>
+            </div>
+            <div
+              class="modal-backdrop bg-black/50"
+              onClick={() => {
+                setCleanupDialogOpen(false);
+                setCleanupArchiveTasks(true);
+                setCleanupArchiveEpics(true);
+              }}
+            />
+          </div>
+        )}
       </div>
     </DndContext>
   );

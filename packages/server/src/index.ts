@@ -25,6 +25,7 @@ import {
   updateTask,
   deleteTask,
   isTaskBlocked,
+  cleanupProject,
   type Store,
 } from '@flux/shared';
 
@@ -257,6 +258,17 @@ app.delete('/api/tasks/:id', (c) => {
   const success = deleteTask(c.req.param('id'));
   if (!success) return c.json({ error: 'Task not found' }, 404);
   return c.json({ success: true });
+});
+
+// Cleanup project (archive done tasks and/or delete empty epics)
+app.post('/api/projects/:projectId/cleanup', async (c) => {
+  const body = await c.req.json();
+  const result = cleanupProject(
+    c.req.param('projectId'),
+    body.archiveTasks ?? true,
+    body.archiveEpics ?? true
+  );
+  return c.json({ success: true, ...result });
 });
 
 // Serve static files from web build (production)

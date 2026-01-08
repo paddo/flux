@@ -1,67 +1,69 @@
-import { useEffect, useState } from 'preact/hooks'
-import { route, RoutableProps } from 'preact-router'
-import { getProjects, updateProject, type ProjectWithStats } from '../stores'
-import { Modal, ThemeToggle } from '../components'
+import { useEffect, useState } from "preact/hooks";
+import { route, RoutableProps } from "preact-router";
+import { getProjects, updateProject, type ProjectWithStats } from "../stores";
+import { Modal, ThemeToggle } from "../components";
 
 export function ProjectList(_props: RoutableProps) {
-  const [projects, setProjects] = useState<ProjectWithStats[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingProject, setEditingProject] = useState<ProjectWithStats | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [projects, setProjects] = useState<ProjectWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingProject, setEditingProject] = useState<ProjectWithStats | null>(
+    null
+  );
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    refreshProjects()
-  }, [])
+    refreshProjects();
+  }, []);
 
   const refreshProjects = async () => {
-    setLoading(true)
-    const allProjects = await getProjects()
-    setProjects(allProjects)
-    setLoading(false)
-  }
+    setLoading(true);
+    const allProjects = await getProjects();
+    setProjects(allProjects);
+    setLoading(false);
+  };
 
   const openEditModal = (project: ProjectWithStats) => {
-    setEditingProject(project)
-    setEditName(project.name)
-    setEditDescription(project.description || '')
-  }
+    setEditingProject(project);
+    setEditName(project.name);
+    setEditDescription(project.description || "");
+  };
 
   const closeEditModal = (force = false) => {
-    if (saving && !force) return
-    setEditingProject(null)
-    setEditName('')
-    setEditDescription('')
-  }
+    if (saving && !force) return;
+    setEditingProject(null);
+    setEditName("");
+    setEditDescription("");
+  };
 
   const handleEditSubmit = async (e: Event) => {
-    e.preventDefault()
-    if (!editingProject || !editName.trim() || saving) return
+    e.preventDefault();
+    if (!editingProject || !editName.trim() || saving) return;
 
-    setSaving(true)
-    let didSave = false
+    setSaving(true);
+    let didSave = false;
     try {
       await updateProject(editingProject.id, {
         name: editName.trim(),
         description: editDescription.trim() || undefined,
-      })
-      await refreshProjects()
-      didSave = true
+      });
+      await refreshProjects();
+      didSave = true;
     } finally {
-      setSaving(false)
+      setSaving(false);
       if (didSave) {
-        closeEditModal(true)
+        closeEditModal(true);
       }
     }
-  }
+  };
 
   if (loading) {
     return (
       <div class="min-h-screen bg-base-200 flex items-center justify-center">
         <span class="loading loading-spinner loading-lg"></span>
       </div>
-    )
+    );
   }
 
   return (
@@ -80,7 +82,7 @@ export function ProjectList(_props: RoutableProps) {
           <button
             type="button"
             class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow border-2 border-dashed border-base-300 text-left"
-            onClick={() => route('/new')}
+            onClick={() => route("/new")}
           >
             <div class="card-body items-center justify-center text-center">
               <div class="text-4xl font-semibold">+</div>
@@ -88,7 +90,7 @@ export function ProjectList(_props: RoutableProps) {
             </div>
           </button>
 
-          {projects.map(project => (
+          {projects.map((project) => (
             <div
               key={project.id}
               class="card bg-base-100 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
@@ -102,8 +104,8 @@ export function ProjectList(_props: RoutableProps) {
                     class="btn btn-ghost btn-sm btn-circle"
                     aria-label="Edit project"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      openEditModal(project)
+                      e.stopPropagation();
+                      openEditModal(project);
                     }}
                   >
                     <svg
@@ -125,20 +127,18 @@ export function ProjectList(_props: RoutableProps) {
                     {project.description}
                   </p>
                 )}
-                <div class="mt-2 flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 text-base-content/50">
-                    <rect x="3" y="5" width="6" height="6" rx="1"></rect>
-                    <path d="m3 17 2 2 4-4"></path>
-                    <path d="M13 6h8"></path>
-                    <path d="M13 12h8"></path>
-                    <path d="M13 18h8"></path>
-                  </svg>
+                <div class="mt-2">
                   {project.stats.total === 0 ? (
-                    <span class="text-sm text-base-content/50">No tasks</span>
+                    <span class="badge badge-soft badge-sm">No tasks</span>
                   ) : (
-                    <span class="text-sm">
-                      <span class="font-semibold text-success">{project.stats.done}</span>
-                      <span class="text-base-content/60">/{project.stats.total} complete</span>
+                    <span
+                      class={`badge badge-soft badge-sm ${
+                        project.stats.done === project.stats.total
+                          ? "badge-success"
+                          : ""
+                      }`}
+                    >
+                      {project.stats.done} of {project.stats.total} complete
                     </span>
                   )}
                 </div>
@@ -175,20 +175,34 @@ export function ProjectList(_props: RoutableProps) {
               class="textarea textarea-bordered w-full"
               rows={3}
               value={editDescription}
-              onInput={(e) => setEditDescription((e.target as HTMLTextAreaElement).value)}
+              onInput={(e) =>
+                setEditDescription((e.target as HTMLTextAreaElement).value)
+              }
             />
           </div>
 
           <div class="modal-action">
-            <button type="button" class="btn btn-ghost" onClick={() => closeEditModal()}>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              onClick={() => closeEditModal()}
+            >
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary" disabled={!editName.trim() || saving}>
-              {saving ? <span class="loading loading-spinner loading-sm"></span> : 'Save'}
+            <button
+              type="submit"
+              class="btn btn-primary"
+              disabled={!editName.trim() || saving}
+            >
+              {saving ? (
+                <span class="loading loading-spinner loading-sm"></span>
+              ) : (
+                "Save"
+              )}
             </button>
           </div>
         </form>
       </Modal>
     </div>
-  )
+  );
 }

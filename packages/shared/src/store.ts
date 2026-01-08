@@ -97,7 +97,7 @@ export function deleteProject(id: string): void {
 }
 
 export function getProjectStats(projectId: string): { total: number; done: number } {
-  const tasks = db.data.tasks.filter(t => t.project_id === projectId);
+  const tasks = db.data.tasks.filter(t => t.project_id === projectId && !t.archived);
   return {
     total: tasks.length,
     done: tasks.filter(t => t.status === 'done').length,
@@ -157,7 +157,7 @@ export function deleteEpic(id: string): boolean {
 // ============ Task Operations ============
 
 export function getTasks(projectId: string): Task[] {
-  return [...db.data.tasks.filter(t => t.project_id === projectId)];
+  return [...db.data.tasks.filter(t => t.project_id === projectId && !t.archived)];
 }
 
 export function getAllTasks(): Task[] {
@@ -247,4 +247,60 @@ export function isTaskBlocked(taskId: string): boolean {
     const dep = db.data.tasks.find(t => t.id === depId);
     return dep && dep.status !== 'done';
   });
+}
+
+// ============ Archive Operations ============
+
+export function archiveDoneTasks(projectId: string): number {
+  let count = 0;
+  db.data.tasks.forEach(task => {
+    if (task.project_id === projectId && task.status === 'done' && !task.archived) {
+      task.archived = true;
+      count++;
+    }
+  });
+  if (count > 0) {
+    db.write();
+  }
+  return count;
+}
+
+export function archiveEmptyEpics(projectId: string): number {
+  let count = 0;
+  const epicIdsToDelete: string[] = [];
+
+  db.data.epics.forEach(epic => {
+    if (epic.project_id === projectId) {
+      // Check if epic has any non-archived tasks
+      const hasActiveTasks = db.data.tasks.some(
+        task => task.epic_id === epic.id && !task.archived
+      );
+      if (!hasActiveTasks) {
+        epicIdsToDelete.push(epic.id);
+        count++;
+      }
+    }
+  });
+
+  if (epicIdsToDelete.length > 0) {
+    db.data.epics = db.data.epics.filter(e => !epicIdsToDelete.includes(e.id));
+    db.write();
+  }
+
+  return count;
+}
+
+export function cleanupProject(projectId: string, archiveTasks: boolean, archiveEpics: boolean): { archivedTasks: number; deletedEpics: number } {
+  let archivedTasks = 0;
+  let deletedEpics = 0;
+
+  if (archiveTasks) {
+    archivedTasks = archiveDoneTasks(projectId);
+  }
+
+  if (archiveEpics) {
+    deletedEpics = archiveEmptyEpics(projectId);
+  }
+
+  return { archivedTasks, deletedEpics };
 }

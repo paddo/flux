@@ -125,20 +125,12 @@ export function ProjectList(_props: RoutableProps) {
                     {project.description}
                   </p>
                 )}
-                <div class="mt-2 flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 text-base-content/50">
-                    <rect x="3" y="5" width="6" height="6" rx="1"></rect>
-                    <path d="m3 17 2 2 4-4"></path>
-                    <path d="M13 6h8"></path>
-                    <path d="M13 12h8"></path>
-                    <path d="M13 18h8"></path>
-                  </svg>
+                <div class="mt-2">
                   {project.stats.total === 0 ? (
-                    <span class="text-sm text-base-content/50">No tasks</span>
+                    <span class="badge badge-soft badge-sm">No tasks</span>
                   ) : (
-                    <span class="text-sm">
-                      <span class="font-semibold text-success">{project.stats.done}</span>
-                      <span class="text-base-content/60">/{project.stats.total} complete</span>
+                    <span class={`badge badge-soft badge-sm ${project.stats.done === project.stats.total ? 'badge-success' : ''}`}>
+                      {project.stats.done}/{project.stats.total} complete
                     </span>
                   )}
                 </div>

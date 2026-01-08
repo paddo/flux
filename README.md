@@ -149,6 +149,12 @@ For Claude Code:
 claude mcp add flux -- node /path/to/flux/packages/mcp/dist/index.js
 ```
 
+For Codex:
+
+```bash
+codex mcp add flux -- node /path/to/flux/packages/mcp/dist/index.js
+```
+
 ## MCP Tools
 
 | Tool | Description |

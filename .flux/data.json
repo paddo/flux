@@ -10,13 +10,24 @@
     {
       "id": "qx376dc",
       "title": "Add file locking for concurrent writes",
-      "status": "planning",
+      "status": "done",
       "depends_on": [],
-      "notes": "The shared single file is a concurrency hot spot; concurrent writes can clobber each other if two agents update at the same time. SQLite in Docker helps, but CLI still uses JSON.",
+      "notes": "The shared single file is a concurrency hot spot; concurrent writes can clobber each other if two agents update at the same time. SQLite in Docker helps, but CLI still uses JSON.\n\nSolved via git-native approach - each repo has own .flux/data.json synced via flux-data branch",
       "project_id": "ldjn13g",
       "priority": 1,
       "created_at": "2026-01-10T10:39:55.073Z",
-      "updated_at": "2026-01-10T10:39:55.073Z"
+      "updated_at": "2026-01-10T11:12:45.590Z"
+    },
+    {
+      "id": "cbwa2gm",
+      "title": "Refactor server as optional multi-repo aggregator",
+      "status": "planning",
+      "depends_on": [],
+      "notes": "Server becomes optional. Watches multiple repos' flux-data branches. SQLite is cache, not source of truth. CLI remains standalone.",
+      "project_id": "ldjn13g",
+      "priority": 2,
+      "created_at": "2026-01-10T11:12:45.560Z",
+      "updated_at": "2026-01-10T11:12:45.560Z"
     }
   ]
 }

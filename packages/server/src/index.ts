@@ -45,7 +45,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const buildInfo = {
   sha: process.env.BUILD_SHA ?? process.env.GIT_SHA ?? 'dev',
-  time: process.env.BUILD_TIME ?? new Date().toISOString(),
+  time: process.env.BUILD_TIME?.trim() || new Date().toISOString(),
 };
 
 // Data file path

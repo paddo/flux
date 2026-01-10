@@ -2,7 +2,9 @@
 
 > Flux is a **completely open, unopinionated task management engine**.
 
-<img src="./docs/kibo-mascot.png" width="300" />
+<p align="center">
+  <img src="./docs/kibo-mascot.png" width="220" />
+</p>
 
 Flux is your ultimate task management sidekick – a lightning-fast Kanban board that lets humans, AI agents, and automations team up to crush chaos. With built-in MCP (Model Context Protocol) integration, your LLMs can jump in and run the show: creating tasks, updating statuses, and keeping everything in sync. No more rigid workflows or SaaS lock-in – just pure, flexible productivity magic! ✨
 

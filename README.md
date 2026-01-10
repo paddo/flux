@@ -63,13 +63,7 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/sirsjg/flux/main/scripts/quickstart.ps1 | iex
 ```
 
-Then start the MCP:
-
-```bash
-docker run -i --rm -v flux-data:/app/packages/data flux-mcp
-```
-
-Web UI is [http://localhost:3000](http://localhost:3000).
+This will start both the web UI ([http://localhost:3000](http://localhost:3000)) and the MCP server. Press Ctrl+C to stop the MCP server when you're done.
 
 ### Claude Code/Codex
 

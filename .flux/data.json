@@ -39,6 +39,17 @@
       "priority": 2,
       "created_at": "2026-01-10T14:14:22.604Z",
       "updated_at": "2026-01-10T14:14:22.604Z"
+    },
+    {
+      "id": "tj2r24y",
+      "title": "Test push fix v3",
+      "status": "planning",
+      "depends_on": [],
+      "notes": "",
+      "project_id": "ldjn13g",
+      "priority": 2,
+      "created_at": "2026-01-10T14:15:06.738Z",
+      "updated_at": "2026-01-10T14:15:06.738Z"
     }
   ]
 }

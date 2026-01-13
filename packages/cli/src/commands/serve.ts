@@ -2,9 +2,9 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
 import {
   setStorageAdapter,
   initStore,
@@ -31,37 +31,11 @@ import {
   getStore,
   replaceStore,
   mergeStore,
-  type Store,
 } from '@flux/shared';
+import { createAdapter } from '@flux/shared/adapters';
+import { findFluxDir, readConfig } from '../config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function createJsonAdapter(filePath: string): { read: () => void; write: () => void; data: Store } {
-  const defaultData: Store = { projects: [], epics: [], tasks: [] };
-  let data: Store = { ...defaultData };
-
-  return {
-    read() {
-      if (existsSync(filePath)) {
-        try {
-          data = JSON.parse(readFileSync(filePath, 'utf-8')) as Store;
-        } catch {
-          data = { ...defaultData };
-        }
-      } else {
-        data = { ...defaultData };
-        this.write();
-      }
-    },
-    write() {
-      const dir = dirname(filePath);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(filePath, JSON.stringify(data, null, 2));
-    },
-    get data() { return data; },
-    set data(v) { data = v; },
-  };
-}
 
 function createApp() {
   const app = new Hono();
@@ -205,15 +179,14 @@ export async function serveCommand(
   args: string[],
   flags: Record<string, string | boolean>
 ): Promise<void> {
-  // Default port 3589 = "FLUX" on numeric keypad (F=3, L=5, U=8, X=9)
+  // Default port 3589 = "FLUX" on phone keypad (F=3, L=5, U=8, X=9)
   const requestedPort = parseInt(flags.port as string || flags.p as string || '3589', 10);
-  const dataFile = (flags.data as string) || join(process.cwd(), '.flux/data.json');
 
-  if (!existsSync(dataFile)) {
-    console.error(`Data file not found: ${dataFile}`);
-    console.error('Run "flux init" first to initialize the project.');
-    process.exit(1);
-  }
+  // Resolve data file: --data flag > config.dataFile > default
+  const fluxDir = findFluxDir();
+  const config = readConfig(fluxDir);
+  const dataFile = (flags.data as string) ||
+    (config.dataFile ? resolve(fluxDir, config.dataFile) : resolve(fluxDir, 'data.json'));
 
   // Find available port
   let port: number;
@@ -227,8 +200,8 @@ export async function serveCommand(
     process.exit(1);
   }
 
-  // Initialize store
-  const adapter = createJsonAdapter(dataFile);
+  // Initialize store (supports .json or .sqlite/.db)
+  const adapter = createAdapter(dataFile);
   setStorageAdapter(adapter);
   initStore();
 

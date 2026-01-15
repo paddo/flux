@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build CLI
+        run: bun run build
+
+      - name: Setup Node for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: npx semantic-release
+
+  changelog:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST=$(gh release view --json tagName,body -q '.tagName + "\n" + .body' 2>/dev/null || echo "")
+          if [ -n "$LATEST" ]; then
+            TAG=$(echo "$LATEST" | head -1)
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "has_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog with Claude
+        if: steps.release.outputs.has_release == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            A new release was just created: ${{ steps.release.outputs.tag }}
+
+            Update CHANGELOG.md with a human-readable entry for this release:
+            1. Read the current CHANGELOG.md (create if missing)
+            2. Get the release notes: gh release view ${{ steps.release.outputs.tag }} --json body -q '.body'
+            3. Get commits since previous tag: git log --oneline $(git describe --tags --abbrev=0 ${{ steps.release.outputs.tag }}^)...${{ steps.release.outputs.tag }}
+            4. Write a concise, user-friendly changelog entry at the top
+            5. Commit and push to main
+
+            Format: ## [version] - YYYY-MM-DD with bullet points grouped by type (Added, Fixed, Changed)
+          claude_args: |
+            --model claude-sonnet-4-20250514
+            --max-turns 5
+            --allowedTools "Read,Write,Bash(git:*),Bash(gh:*)"
